@@ -1,4 +1,4 @@
-package com.acme.rental;
+package com.czareg;
 
 public enum CarStatus
 {

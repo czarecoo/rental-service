@@ -1,4 +1,4 @@
-package com.acme.rental;
+package com.czareg;
 
 import java.util.List;
 
