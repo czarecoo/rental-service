@@ -18,20 +18,20 @@ public class LockingCarRentalService implements CarRentalService {
     }
 
     @Override
-    public Car rentCar(long carId, long clientId) {
+    public Rental rentCar(long carId, long clientId, int days) {
         lock.writeLock().lock();
         try {
-            return carRentalService.rentCar(carId, clientId);
+            return carRentalService.rentCar(carId, clientId, days);
         } finally {
             lock.writeLock().unlock();
         }
     }
 
     @Override
-    public Car returnCar(long carId, long clientId) {
+    public void returnCar(long carId, long clientId) {
         lock.writeLock().lock();
         try {
-            return carRentalService.returnCar(carId, clientId);
+            carRentalService.returnCar(carId, clientId);
         } finally {
             lock.writeLock().unlock();
         }
@@ -58,10 +58,10 @@ public class LockingCarRentalService implements CarRentalService {
     }
 
     @Override
-    public boolean isCarRented(long carId) {
+    public CarStatus getCarStatus(long carId) {
         lock.readLock().lock();
         try {
-            return carRentalService.isCarRented(carId);
+            return carRentalService.getCarStatus(carId);
         } finally {
             lock.readLock().unlock();
         }
@@ -74,6 +74,26 @@ public class LockingCarRentalService implements CarRentalService {
             return carRentalService.getAllClients();
         } finally {
             lock.readLock().unlock();
+        }
+    }
+
+    @Override
+    public Reservation reserveCar(long carId, long clientId, int days) {
+        lock.writeLock().lock();
+        try {
+            return carRentalService.reserveCar(carId, clientId, days);
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    @Override
+    public void cancelCarReservation(long carId, long clientId) {
+        lock.writeLock().lock();
+        try {
+            carRentalService.cancelCarReservation(carId, clientId);
+        } finally {
+            lock.writeLock().unlock();
         }
     }
 }

@@ -1,109 +1,121 @@
 package com.czareg;
 
+import lombok.RequiredArgsConstructor;
+
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Not thread safe.
  */
+@RequiredArgsConstructor
 public class DefaultCarRentalService implements CarRentalService {
 
-    private final Map<Long, Car> cars;
-    private final Map<Long, Client> clients;
-
-    public DefaultCarRentalService(List<Car> cars, List<Client> clients) {
-        this.cars = cars.stream()
-                .collect(Collectors.toMap(
-                        Car::carId,
-                        Function.identity(),
-                        (carA, carB) -> {
-                            throw new IllegalStateException("Duplicate car detected: " + carA.carId());
-                        }));
-        this.clients = clients.stream()
-                .collect(Collectors.toMap(
-                        Client::clientId,
-                        Function.identity(),
-                        (clientA, clientB) -> {
-                            throw new IllegalStateException("Duplicate client detected: " + clientA.clientId());
-                        }));
-    }
+    private final Repository repository;
+    private final AtomicLong id = new AtomicLong();
 
     @Override
-    public Car rentCar(long carId, long clientId) {
-        Car car = findCarOrThrow(carId);
-        CarStatus carStatus = car.status();
+    public Rental rentCar(long carId, long clientId, int days) {
+        repository.findCarOrThrow(carId);
+        CarStatus carStatus = getCarStatus(carId);
         if (carStatus != CarStatus.AVAILABLE) {
             throw new IllegalStateException("Car %s has status %s and cannot be rented by client %s".formatted(carId, carStatus, clientId));
         }
-        // what if car is reserved?
+        repository.findClientOrThrow(clientId);
 
-        Client client = findClientOrThrow(clientId);
-        clients.put(clientId, client.withCar(carId));
-        Car modifiedCar = car.withStatus(CarStatus.RENTED);
-        cars.put(carId, modifiedCar);
-        return modifiedCar;
+        Instant endTime = days == Integer.MAX_VALUE ? Instant.MAX : Instant.now().plus(days, ChronoUnit.DAYS);
+        Rental rental = new Rental(id.getAndIncrement(), carId, clientId, Instant.now(), endTime);
+        repository.put(rental);
+        return rental;
     }
 
     @Override
-    public Car returnCar(long carId, long clientId) {
-        Car car = findCarOrThrow(carId);
-        CarStatus carStatus = car.status();
+    public void returnCar(long carId, long clientId) {
+        repository.findCarOrThrow(carId);
+        CarStatus carStatus = getCarStatus(carId);
         if (carStatus != CarStatus.RENTED) {
             throw new IllegalStateException("Car %s has status %s and cannot be returned by client %s".formatted(carId, carStatus, clientId));
         }
-        Client client = findClientOrThrow(clientId);
-        List<Long> rentedCarIds = client.getRentedCarIds();
-        if (!rentedCarIds.contains(carId)) {
-            throw new IllegalArgumentException("Client %s doesn't rent car %s".formatted(carId, carStatus));
+        repository.findClientOrThrow(clientId);
+        Rental rental = repository.findRentalOrThrow(carId);
+        if (!Objects.equals(rental.clientId(), clientId)) {
+            throw new IllegalArgumentException("Client %s doesn't rent car %s".formatted(clientId, carId));
         }
 
-        clients.put(clientId, client.withoutCar(carId));
-        Car modifiedCar = car.withStatus(CarStatus.AVAILABLE);
-        cars.put(carId, modifiedCar);
-        return modifiedCar;
+        Rental modifiedRental = rental.withEndTime(Instant.now());
+        repository.put(modifiedRental);
     }
 
     @Override
     public List<Car> getAvailableCars() {
-        return cars.values()
+        return repository.getCars()
                 .stream()
-                .filter(car -> car.status() == CarStatus.AVAILABLE)
+                .filter(car -> getCarStatus(car.carId()) == CarStatus.AVAILABLE)
                 .toList();
     }
 
     @Override
     public List<Car> getAllRentedCarsByClient(long clientId) {
-        Client client = findClientOrThrow(clientId);
-
-        return client.getRentedCarIds()
-                .stream()
-                .map(cars::get)
+        repository.findClientOrThrow(clientId);
+        List<Rental> rentals = repository.getCurrentRentals(clientId);
+        return rentals.stream()
+                .map(Rental::carId)
+                .map(repository::findCarOrThrow)
                 .toList();
     }
 
     @Override
-    public boolean isCarRented(long carId) {
-        Car car = findCarOrThrow(carId);
-        return car.status() == CarStatus.RENTED;
+    public CarStatus getCarStatus(long carId) {
+        repository.findCarOrThrow(carId);
+        if (repository.isRented(carId)) {
+            return CarStatus.RENTED;
+        }
+        if (repository.isReserved(carId)) {
+            return CarStatus.RESERVED;
+        }
+        if (repository.isUnavailable(carId)) {
+            return CarStatus.UNAVAILABLE;
+        }
+        return CarStatus.AVAILABLE;
     }
 
     @Override
     public List<Client> getAllClients() {
-        return clients.values()
-                .stream()
-                .toList();
+        return repository.getClients();
     }
 
-    private Car findCarOrThrow(long carId) {
-        return Optional.ofNullable(cars.get(carId))
-                .orElseThrow(() -> new IllegalArgumentException("Car %s doesn't exists".formatted(carId)));
+    @Override
+    public Reservation reserveCar(long carId, long clientId, int days) {
+        repository.findCarOrThrow(carId);
+        CarStatus carStatus = getCarStatus(carId);
+        if (carStatus != CarStatus.AVAILABLE) {
+            throw new IllegalStateException("Car %s has status %s and cannot be reserved by client %s".formatted(carId, carStatus, clientId));
+        }
+        repository.findClientOrThrow(clientId);
+
+        Instant endTime = days == Integer.MAX_VALUE ? Instant.MAX : Instant.now().plus(days, ChronoUnit.DAYS);
+        Reservation reservation = new Reservation(id.getAndIncrement(), carId, clientId, Instant.now(), endTime);
+        repository.put(reservation);
+        return reservation;
     }
 
-    private Client findClientOrThrow(long clientId) {
-        return Optional.ofNullable(clients.get(clientId))
-                .orElseThrow(() -> new IllegalArgumentException("Client %s doesn't exists".formatted(clientId)));
+    @Override
+    public void cancelCarReservation(long carId, long clientId) {
+        repository.findCarOrThrow(carId);
+        CarStatus carStatus = getCarStatus(carId);
+        if (carStatus != CarStatus.RESERVED) {
+            throw new IllegalStateException("Car %s has status %s and cannot have its reservation cancelled by client %ss".formatted(carId, carStatus, clientId));
+        }
+        repository.findClientOrThrow(clientId);
+        Reservation reservation = repository.findReservationOrThrow(carId);
+        if (Objects.equals(reservation.clientId(), clientId)) {
+            throw new IllegalArgumentException("Client %s doesn't have a reservation for car %s".formatted(carId, carStatus));
+        }
+
+        Reservation modifiedReservation = reservation.withEndTime(Instant.now());
+        repository.put(modifiedReservation);
     }
 }
