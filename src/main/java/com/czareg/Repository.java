@@ -3,7 +3,6 @@ package com.czareg;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.function.Function;
@@ -60,7 +59,7 @@ public class Repository {
         return rentals.values()
                 .stream()
                 .filter(rental -> Objects.equals(rental.carId(), carId)
-                        && isNowBetweenOrEqualTo(rental.startTime(), rental.endTime()))
+                        && isNotOver(rental.startTime(), rental.endTime()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Rental for %s doesn't exists".formatted(carId)));
     }
@@ -69,7 +68,7 @@ public class Repository {
         return reservations.values()
                 .stream()
                 .filter(reservation -> Objects.equals(reservation.carId(), carId)
-                        && isNowBetweenOrEqualTo(reservation.startTime(), reservation.endTime()))
+                        && isNotOver(reservation.startTime(), reservation.endTime()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Reservation for %s doesn't exists".formatted(carId)));
     }
@@ -99,22 +98,22 @@ public class Repository {
 
     public boolean isRented(long carId) {
         for (Rental rental : rentals.values()) {
-            if (Objects.equals(rental.carId(), carId) && isNowBetweenOrEqualTo(rental.startTime(), rental.endTime())) {
+            if (Objects.equals(rental.carId(), carId) && isNotOver(rental.startTime(), rental.endTime())) {
                 return true;
             }
         }
         return false;
     }
 
-    private boolean isNowBetweenOrEqualTo(Instant start, Instant end) {
+    private boolean isNotOver(Instant start, Instant end) {
         Instant now = Instant.now();
-        return !now.isBefore(start) && !now.isAfter(end);
+        return now.isBefore(end);
     }
 
     public boolean isUnavailable(long carId) {
         for (Unavailability unavailability : unavailabilities.values()) {
             if (Objects.equals(unavailability.carId(), carId)
-                    && isNowBetweenOrEqualTo(unavailability.startTime(), unavailability.endTime())) {
+                    && isNotOver(unavailability.startTime(), unavailability.endTime())) {
                 return true;
             }
         }
@@ -137,7 +136,7 @@ public class Repository {
         return rentals.values()
                 .stream()
                 .filter(rental -> Objects.equals(rental.clientId(), clientId)
-                        && isNowBetweenOrEqualTo(rental.startTime(), rental.endTime()))
+                        && isNotOver(rental.startTime(), rental.endTime()))
                 .toList();
     }
 }
