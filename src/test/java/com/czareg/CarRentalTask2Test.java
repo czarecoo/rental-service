@@ -4,9 +4,8 @@ import org.junit.jupiter.api.RepeatedTest;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -19,37 +18,51 @@ class CarRentalTask2Test {
     private static final int NUMBER_OF_THREADS = 10;
     private static final long CAR_1_ID = 1;
 
-//    @RepeatedTest(REPETITIONS)
-//    void allClientsTryToRentOneCarAtTheSameTime() {
-//        // given
-//        List<Car> cars = List.of(new Car(CAR_1_ID));
-//        List<Client> clients = LongStream.rangeClosed(1, NUMBER_OF_THREADS).mapToObj(Client::new).toList();
-//        CarRentalService carRentalService = new LockingCarRentalService(new DefaultCarRentalService(cars, clients));
-//        List<Long> clientIds = clients.stream().map(Client::clientId).toList();
-//
-//        // when
-//        try (ExecutorService executorService = Executors.newFixedThreadPool(NUMBER_OF_THREADS)) {
-//            clientIds.forEach(clientId -> {
-//                Runnable task = () -> tryToRentACar(carRentalService, CAR_1_ID, clientId);
-//                CompletableFuture.runAsync(task, executorService);
-//            });
-//        }
-//
-//        // then
-//        assertThat(carRentalService.isCarRented(CAR_1_ID)).isTrue();
-//        assertThat(carRentalService.getAvailableCars()).isEmpty();
-//        Map<Integer, List<Client>> clientsByNumberOfCars = carRentalService.getAllClients()
-//                .stream()
-//                .collect(Collectors.groupingBy(client -> client.rentedCarIds().size(),
-//                        toList()));
-//        assertThat(clientsByNumberOfCars).hasEntrySatisfying(0, clientsWithoutCars -> assertThat(clientsWithoutCars).hasSize(9));
-//        assertThat(clientsByNumberOfCars).hasEntrySatisfying(1, clientsWithCars -> assertThat(clientsWithCars).hasSize(1));
-//        Client client = clientsByNumberOfCars.get(1).getFirst();
-//        List<Long> rentedCarIds = client.rentedCarIds();
-//        assertThat(rentedCarIds).hasSize(1);
-//        List<Car> allRentedCarsByClient = carRentalService.getAllRentedCarsByClient(client.clientId());
-//        assertThat(allRentedCarsByClient).hasSize(1).containsExactly(new Car(CAR_1_ID, CarStatus.RENTED));
-//    }
+    @RepeatedTest(REPETITIONS)
+    void allClientsTryToRentOneCarAtTheSameTime() {
+        // given
+        List<Car> cars = List.of(new Car(CAR_1_ID));
+        List<Client> clients = LongStream.rangeClosed(1, NUMBER_OF_THREADS).mapToObj(Client::new).toList();
+        Repository repository = new Repository(cars, clients);
+        CarRentalService carRentalService = new LockingCarRentalService(new DefaultCarRentalService(repository));
+        List<Long> clientIds = clients.stream().map(Client::clientId).toList();
+
+        // when
+        try (ExecutorService executorService = Executors.newFixedThreadPool(NUMBER_OF_THREADS)) {
+            CountDownLatch countDownLatch = new CountDownLatch(1);
+            clientIds.forEach(clientId -> {
+                Runnable task = () -> {
+                    try {
+                        countDownLatch.await(2, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    tryToRentACar(carRentalService, CAR_1_ID, clientId);
+                };
+                CompletableFuture.runAsync(task, executorService);
+            });
+            countDownLatch.countDown(); // all tasks are started at the same time
+        }
+
+        // then
+        assertThat(carRentalService.getCarStatus(CAR_1_ID)).isEqualTo(CarStatus.RENTED);
+        assertThat(carRentalService.getAvailableCars()).isEmpty();
+        Map<Client, List<Car>> carsByClient = carRentalService.getAllClients()
+                .stream()
+                .collect(Collectors.toMap(Function.identity(), client -> carRentalService.getAllRentedCarsByClient(client.clientId())));
+        Map<Integer, List<Client>> clientsByNumberOfCars = carsByClient.keySet()
+                .stream()
+                .collect(Collectors.groupingBy(client -> carsByClient.get(client).size(),
+                        toList()));
+
+        assertThat(clientsByNumberOfCars).hasEntrySatisfying(0, clientsWithoutCars -> assertThat(clientsWithoutCars).hasSize(9));
+        assertThat(clientsByNumberOfCars).hasEntrySatisfying(1, clientsWithCars -> assertThat(clientsWithCars).hasSize(1));
+        Client client = clientsByNumberOfCars.get(1).getFirst();
+        List<Car> rentedCars = carsByClient.get(client);
+        assertThat(rentedCars).hasSize(1);
+        List<Car> allRentedCarsByClient = carRentalService.getAllRentedCarsByClient(client.clientId());
+        assertThat(allRentedCarsByClient).hasSize(1).containsExactly(new Car(CAR_1_ID));
+    }
 //
 //    @RepeatedTest(REPETITIONS)
 //    void allClientsTryToRentAllAvailableCars() {
@@ -128,13 +141,14 @@ class CarRentalTask2Test {
 //        }
 //    }
 //
-//    private static void tryToRentACar(CarRentalService carRentalService, long carId, long clientId) {
-//        try {
-//            carRentalService.rentCar(carId, clientId);
-//        } catch (RuntimeException e) {
-//            // ignored
-//        }
-//    }
+    private static void tryToRentACar(CarRentalService carRentalService, long carId, long clientId) {
+        try {
+            carRentalService.rentCar(carId, clientId);
+            System.out.println(clientId);
+        } catch (RuntimeException e) {
+            // ignored
+        }
+    }
 //
 //    private static void tryToReturnACar(CarRentalService carRentalService, long carId, long clientId) {
 //        try {
