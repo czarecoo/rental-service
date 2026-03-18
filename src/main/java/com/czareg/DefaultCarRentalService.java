@@ -28,7 +28,7 @@ public class DefaultCarRentalService implements CarRentalService {
 
         Instant endTime = days == Integer.MAX_VALUE ? Instant.MAX : Instant.now().plus(days, ChronoUnit.DAYS);
         Rental rental = new Rental(id.getAndIncrement(), carId, clientId, Instant.now(), endTime);
-        repository.put(rental);
+        repository.add(rental);
         return rental;
     }
 
@@ -44,16 +44,15 @@ public class DefaultCarRentalService implements CarRentalService {
         if (!Objects.equals(rental.clientId(), clientId)) {
             throw new IllegalArgumentException("Client %s doesn't rent car %s".formatted(clientId, carId));
         }
-
         Rental modifiedRental = rental.withEndTime(Instant.now());
-        repository.put(modifiedRental);
+        repository.end(modifiedRental);
     }
 
     @Override
     public List<Car> getAvailableCars() {
         return repository.getCars()
                 .stream()
-                .filter(car -> getCarStatus(car.carId()) == CarStatus.AVAILABLE)
+                .filter(car -> getCarStatus(car.id()) == CarStatus.AVAILABLE)
                 .toList();
     }
 
@@ -70,16 +69,10 @@ public class DefaultCarRentalService implements CarRentalService {
     @Override
     public CarStatus getCarStatus(long carId) {
         repository.findCarOrThrow(carId);
-        if (repository.isRented(carId)) {
-            return CarStatus.RENTED;
-        }
-        if (repository.isReserved(carId)) {
-            return CarStatus.RESERVED;
-        }
-        if (repository.isUnavailable(carId)) {
-            return CarStatus.UNAVAILABLE;
-        }
-        return CarStatus.AVAILABLE;
+
+        return repository.findActiveSlot(carId)
+                .map(TimeSlot::carStatus)
+                .orElse(CarStatus.AVAILABLE);
     }
 
     @Override
@@ -98,7 +91,7 @@ public class DefaultCarRentalService implements CarRentalService {
 
         Instant endTime = days == Integer.MAX_VALUE ? Instant.MAX : Instant.now().plus(days, ChronoUnit.DAYS);
         Reservation reservation = new Reservation(id.getAndIncrement(), carId, clientId, Instant.now(), endTime);
-        repository.put(reservation);
+        repository.add(reservation);
         return reservation;
     }
 
@@ -116,6 +109,6 @@ public class DefaultCarRentalService implements CarRentalService {
         }
 
         Reservation modifiedReservation = reservation.withEndTime(Instant.now());
-        repository.put(modifiedReservation);
+        repository.end(modifiedReservation);
     }
 }

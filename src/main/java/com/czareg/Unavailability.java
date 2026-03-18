@@ -3,10 +3,10 @@ package com.czareg;
 import java.time.Instant;
 import java.util.Objects;
 
-public record Unavailability(long unavailabilityId, long carId, Instant startTime, Instant endTime) {
+public record Unavailability(long id, long carId, Instant startTime, Instant endTime) implements TimeSlot {
 
     public Unavailability {
-        if (unavailabilityId < 0) {
+        if (id < 0) {
             throw new IllegalArgumentException();
         }
         if (carId < 0) {
@@ -14,5 +14,10 @@ public record Unavailability(long unavailabilityId, long carId, Instant startTim
         }
         Objects.requireNonNull(startTime);
         Objects.requireNonNull(endTime);
+    }
+
+    @Override
+    public CarStatus carStatus() {
+        return CarStatus.UNAVAILABLE;
     }
 }

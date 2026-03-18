@@ -1,9 +1,9 @@
 package com.czareg;
 
-public record Car(long carId) {
+public record Car(long id) {
 
     public Car {
-        if (carId < 0) {
+        if (id < 0) {
             throw new IllegalArgumentException();
         }
     }

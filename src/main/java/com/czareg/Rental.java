@@ -6,10 +6,10 @@ import java.time.Instant;
 import java.util.Objects;
 
 @With
-public record Rental(long rentalId, long carId, long clientId, Instant startTime, Instant endTime) {
+public record Rental(long id, long carId, long clientId, Instant startTime, Instant endTime) implements TimeSlot {
 
     public Rental {
-        if (rentalId < 0) {
+        if (id < 0) {
             throw new IllegalArgumentException();
         }
         if (carId < 0) {
@@ -20,5 +20,10 @@ public record Rental(long rentalId, long carId, long clientId, Instant startTime
         }
         Objects.requireNonNull(startTime);
         Objects.requireNonNull(endTime);
+    }
+
+    @Override
+    public CarStatus carStatus() {
+        return CarStatus.RENTED;
     }
 }

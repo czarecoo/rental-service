@@ -1,7 +1,11 @@
 package com.czareg;
 
 import org.junit.jupiter.api.RepeatedTest;
+import org.junit.jupiter.api.function.Executable;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
@@ -11,6 +15,8 @@ import java.util.stream.LongStream;
 
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.*;
 
 class CarRentalTask2Test {
 
@@ -25,7 +31,7 @@ class CarRentalTask2Test {
         List<Client> clients = LongStream.rangeClosed(1, NUMBER_OF_THREADS).mapToObj(Client::new).toList();
         Repository repository = new Repository(cars, clients);
         CarRentalService carRentalService = new LockingCarRentalService(new DefaultCarRentalService(repository));
-        List<Long> clientIds = clients.stream().map(Client::clientId).toList();
+        List<Long> clientIds = clients.stream().map(Client::id).toList();
 
         // when
         try (ExecutorService executorService = Executors.newFixedThreadPool(NUMBER_OF_THREADS)) {
@@ -49,7 +55,7 @@ class CarRentalTask2Test {
         assertThat(carRentalService.getAvailableCars()).isEmpty();
         Map<Client, List<Car>> carsByClient = carRentalService.getAllClients()
                 .stream()
-                .collect(Collectors.toMap(Function.identity(), client -> carRentalService.getAllRentedCarsByClient(client.clientId())));
+                .collect(Collectors.toMap(Function.identity(), client -> carRentalService.getAllRentedCarsByClient(client.id())));
         Map<Integer, List<Client>> clientsByNumberOfCars = carsByClient.keySet()
                 .stream()
                 .collect(Collectors.groupingBy(client -> carsByClient.get(client).size(),
@@ -60,112 +66,121 @@ class CarRentalTask2Test {
         Client client = clientsByNumberOfCars.get(1).getFirst();
         List<Car> rentedCars = carsByClient.get(client);
         assertThat(rentedCars).hasSize(1);
-        List<Car> allRentedCarsByClient = carRentalService.getAllRentedCarsByClient(client.clientId());
+        List<Car> allRentedCarsByClient = carRentalService.getAllRentedCarsByClient(client.id());
         assertThat(allRentedCarsByClient).hasSize(1).containsExactly(new Car(CAR_1_ID));
     }
-//
-//    @RepeatedTest(REPETITIONS)
-//    void allClientsTryToRentAllAvailableCars() {
-//        // given
-//        List<Car> cars = LongStream.rangeClosed(1, NUMBER_OF_THREADS).mapToObj(Car::new).toList();
-//        List<Client> clients = LongStream.rangeClosed(1, NUMBER_OF_THREADS).mapToObj(Client::new).toList();
-//        CarRentalService carRentalService = new LockingCarRentalService(new DefaultCarRentalService(cars, clients));
-//        List<Long> clientIds = clients.stream().map(Client::clientId).toList();
-//
-//        // when
-//        try (ExecutorService executorService = Executors.newFixedThreadPool(NUMBER_OF_THREADS)) {
-//            clientIds.forEach(clientId -> {
-//                Runnable task = () -> tryToRentAllAvailableCars(carRentalService, clientId);
-//                CompletableFuture.runAsync(task, executorService);
-//            });
-//        }
-//
-//        // then
-//        assertThat(carRentalService.getAvailableCars()).isEmpty();
-//        for (Car car : cars) {
-//            assertThat(carRentalService.isCarRented(car.carId())).isTrue();
-//        }
-//        List<Client> actualClients = carRentalService.getAllClients();
-//        assertThat(actualClients).isNotEmpty().hasSizeLessThanOrEqualTo(NUMBER_OF_THREADS);
-//        for (Client client : actualClients) {
-//            List<Long> rentedCarIds = client.rentedCarIds();
-//            assertThat(rentedCarIds).hasSizeGreaterThanOrEqualTo(0).hasSizeLessThanOrEqualTo(NUMBER_OF_THREADS);
-//            List<Car> allRentedCarsByClient = carRentalService.getAllRentedCarsByClient(client.clientId());
-//            assertThat(allRentedCarsByClient).hasSizeGreaterThanOrEqualTo(0).hasSizeLessThanOrEqualTo(NUMBER_OF_THREADS);
-//        }
-//
-//        List<Long> allCarIds = actualClients.stream().map(Client::rentedCarIds).flatMap(List::stream).toList();
-//        assertThat(allCarIds).containsExactlyInAnyOrderElementsOf(cars.stream().map(Car::carId).toList());
-//    }
-//
-//    @RepeatedTest(REPETITIONS)
-//    void someClientsRentAndReturnCarsAndOthersRead() {
-//        // given
-//        List<Car> cars = LongStream.rangeClosed(1, 5).mapToObj(Car::new).toList();
-//        List<Client> clients = LongStream.rangeClosed(1, 5).mapToObj(Client::new).toList();
-//        CarRentalService carRentalService = new LockingCarRentalService(new DefaultCarRentalService(cars, clients));
-//        List<Long> carIds = cars.stream().map(Car::carId).toList();
-//        List<Long> clientIds = clients.stream().map(Client::clientId).toList();
-//
-//        try (ExecutorService executorService = Executors.newFixedThreadPool(NUMBER_OF_THREADS)) {
-//            // writers
-//            for (long clientId : clientIds) {
-//                CompletableFuture.runAsync(() -> {
-//                    for (int i = 0; i < 1000; i++) {
-//                        for (long carId : carIds) {
-//                            tryToRentACar(carRentalService, carId, clientId);
-//                            tryToReturnACar(carRentalService, carId, clientId);
-//                        }
-//                    }
-//                }, executorService);
-//            }
-//
-//            // readers
-//            for (int i = 0; i < 5; i++) {
-//                CompletableFuture.runAsync(() -> {
-//                    for (int j = 0; j < 50_000; j++) {
-//                        // reading without synchronization
-//                        List<Client> allClients = carRentalService.getAllClients();
-//
-//                        for (Client client : allClients) {
-//                            List<Long> rented = client.rentedCarIds();
-//
-//                            // iterate while other thread modifies
-//                            for (Long id : rented) {
-//                                assertThat(id).isNotNull();
-//                            }
-//                        }
-//                    }
-//                }, executorService);
-//            }
-//        }
-//    }
-//
+
+    @RepeatedTest(REPETITIONS)
+    void allClientsTryToRentAllAvailableCars() {
+        // given
+        List<Car> cars = LongStream.rangeClosed(1, NUMBER_OF_THREADS).mapToObj(Car::new).toList();
+        List<Client> clients = LongStream.rangeClosed(1, NUMBER_OF_THREADS).mapToObj(Client::new).toList();
+        Repository repository = new Repository(cars, clients);
+        CarRentalService carRentalService = new LockingCarRentalService(new DefaultCarRentalService(repository));
+        List<Long> clientIds = clients.stream().map(Client::id).toList();
+
+        // when
+        try (ExecutorService executorService = Executors.newFixedThreadPool(NUMBER_OF_THREADS)) {
+            clientIds.forEach(clientId -> {
+                Runnable task = () -> tryToRentAllAvailableCars(carRentalService, clientId);
+                CompletableFuture.runAsync(task, executorService);
+            });
+        }
+
+        // then
+        assertThat(carRentalService.getAvailableCars()).isEmpty();
+        for (Car car : cars) {
+            assertEquals(CarStatus.RENTED, carRentalService.getCarStatus(car.id()));
+        }
+        List<Client> actualClients = carRentalService.getAllClients();
+        assertThat(actualClients).isNotEmpty().hasSizeLessThanOrEqualTo(NUMBER_OF_THREADS);
+        List<Car> allRentedCars = new ArrayList<>();
+        for (Client client : actualClients) {
+            List<Car> rentedCars = carRentalService.getAllRentedCarsByClient(client.id());
+            assertThat(rentedCars).hasSizeGreaterThanOrEqualTo(0).hasSizeLessThanOrEqualTo(NUMBER_OF_THREADS);
+            allRentedCars.addAll(rentedCars);
+        }
+
+        assertThat(allRentedCars).containsExactlyInAnyOrderElementsOf(cars.stream().toList());
+    }
+
+    @RepeatedTest(5)
+    void someClientsRentAndReturnCarsAndOthersRead() throws InterruptedException {
+        // given
+        List<Car> cars = LongStream.rangeClosed(1, 5).mapToObj(Car::new).toList();
+        List<Client> clients = LongStream.rangeClosed(1, 5).mapToObj(Client::new).toList();
+        Repository repository = new Repository(cars, clients);
+        CarRentalService carRentalService = new LockingCarRentalService(new DefaultCarRentalService(repository));
+        List<Long> carIds = cars.stream().map(Car::id).toList();
+        List<Long> clientIds = clients.stream().map(Client::id).toList();
+
+        try (ExecutorService executorService = Executors.newFixedThreadPool(NUMBER_OF_THREADS)) {
+            List<Callable<Void>> callables = new ArrayList<>();
+            // writers
+            for (long clientId : clientIds) {
+                callables.add(() -> {
+                    while (!Thread.currentThread().isInterrupted()) {
+                        for (long carId : carIds) {
+                            tryToRentACar(carRentalService, carId, clientId);
+                            tryToReturnACar(carRentalService, carId, clientId);
+                        }
+                    }
+                    return null;
+                });
+            }
+
+            // readers
+            for (long clientId : clientIds) {
+                callables.add(() -> {
+                    while (!Thread.currentThread().isInterrupted()) {
+                        List<Car> allRentedCarsByClient = carRentalService.getAllRentedCarsByClient(clientId);
+                        for (Car car : allRentedCarsByClient) {
+                            assertThat(car).isNotNull();
+                        }
+                    }
+                    return null;
+                });
+            }
+
+            List<Future<Void>> futures = executorService.invokeAll(callables, 1, TimeUnit.SECONDS);
+
+            assertAll(futures.stream()
+                    .map(future -> () -> {
+                        try {
+                            future.get();
+                        } catch (CancellationException ignored) {
+                            // expected due to timeout
+                        } catch (ExecutionException e) {
+                            throw e.getCause(); // unwrap real exception
+                        }
+                    }));
+        }
+    }
+
     private static void tryToRentACar(CarRentalService carRentalService, long carId, long clientId) {
         try {
             carRentalService.rentCar(carId, clientId);
-            System.out.println(clientId);
         } catch (RuntimeException e) {
             // ignored
         }
     }
-//
-//    private static void tryToReturnACar(CarRentalService carRentalService, long carId, long clientId) {
-//        try {
-//            carRentalService.returnCar(carId, clientId);
-//        } catch (RuntimeException e) {
-//            // ignored
-//        }
-//    }
-//
-//    private static void tryToRentAllAvailableCars(CarRentalService carRentalService, long clientId) {
-//        while (true) {
-//            List<Car> cars = carRentalService.getAvailableCars();
-//            if (cars.isEmpty()) {
-//                break;
-//            }
-//            Car car = cars.getFirst();
-//            tryToRentACar(carRentalService, car.carId(), clientId);
-//        }
-//    }
+
+    private static void tryToReturnACar(CarRentalService carRentalService, long carId, long clientId) {
+        try {
+            carRentalService.returnCar(carId, clientId);
+        } catch (RuntimeException e) {
+            // ignored
+        }
+    }
+
+    private static void tryToRentAllAvailableCars(CarRentalService carRentalService, long clientId) {
+        while (true) {
+            List<Car> cars = carRentalService.getAvailableCars();
+            if (cars.isEmpty()) {
+                break;
+            }
+            Car car = cars.getFirst();
+            tryToRentACar(carRentalService, car.id(), clientId);
+        }
+    }
 }

@@ -1,9 +1,9 @@
 package com.czareg;
 
-public record Client(long clientId) {
+public record Client(long id) {
 
     public Client {
-        if (clientId < 0) {
+        if (id < 0) {
             throw new IllegalArgumentException();
         }
     }

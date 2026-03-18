@@ -1,40 +1,22 @@
 package com.czareg;
 
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 
-import java.time.Instant;
 import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
-@Builder
 @AllArgsConstructor
 public class Repository {
 
-    @Builder.Default
     private final Map<Long, Car> cars = new HashMap<>();
-    @Builder.Default
     private final Map<Long, Client> clients = new HashMap<>();
-    @Builder.Default
     private final Map<Long, Reservation> reservations = new HashMap<>();
-    @Builder.Default
     private final Map<Long, Rental> rentals = new HashMap<>();
-    @Builder.Default
     private final Map<Long, Unavailability> unavailabilities = new HashMap<>();
+    private final Map<Long, TimeSlot> timeSlots = new HashMap<>(); //index for holding ONLY active timeslots for id
 
     public Repository(List<Car> cars, List<Client> clients) {
-        this(toMap(cars, Car::carId), toMap(clients, Client::clientId), new HashMap<>(), new HashMap<>(), new HashMap<>());
-    }
-
-    private static <T> Map<Long, T> toMap(List<T> items, Function<T, Long> getItemId) {
-        return items.stream()
-                .collect(Collectors.toMap(
-                        getItemId,
-                        Function.identity(),
-                        (a, b) -> {
-                            throw new IllegalStateException("Duplicate item detected: " + getItemId.apply(a));
-                        }));
+        cars.forEach(car -> this.cars.put(car.id(),car));
+        clients.forEach(client -> this.clients.put(client.id(),client));
     }
 
     public List<Car> getCars(){
@@ -56,87 +38,66 @@ public class Repository {
     }
 
     public Rental findRentalOrThrow(long carId) {
-        return rentals.values()
-                .stream()
-                .filter(rental -> Objects.equals(rental.carId(), carId)
-                        && isNotOver(rental.startTime(), rental.endTime()))
-                .findFirst()
+        return Optional.ofNullable(timeSlots.get(carId))
+                .filter(slot -> slot instanceof Rental rental
+                        && rental.isActiveNow())
+                .map(slot -> (Rental) slot)
                 .orElseThrow(() -> new IllegalArgumentException("Rental for %s doesn't exists".formatted(carId)));
     }
 
     public Reservation findReservationOrThrow(long carId) {
-        return reservations.values()
-                .stream()
-                .filter(reservation -> Objects.equals(reservation.carId(), carId)
-                        && isNotOver(reservation.startTime(), reservation.endTime()))
-                .findFirst()
+        return Optional.ofNullable(timeSlots.get(carId))
+                .filter(slot -> slot instanceof Reservation reservation
+                        && reservation.isActiveNow())
+                .map(slot -> (Reservation) slot)
                 .orElseThrow(() -> new IllegalArgumentException("Reservation for %s doesn't exists".formatted(carId)));
     }
 
-    public void put(Reservation reservation) {
-        reservations.put(reservation.reservationId(), reservation);
+    public void add(Reservation reservation) {
+        reservations.put(reservation.id(), reservation);
+        timeSlots.put(reservation.carId(),reservation);
     }
 
-    public void put(Rental rental) {
-        rentals.put(rental.rentalId(), rental);
+    public void add(Rental rental) {
+        rentals.put(rental.id(), rental);
+        timeSlots.put(rental.carId(),rental);
     }
 
-    public void put(Unavailability unavailability) {
-        unavailabilities.put(unavailability.unavailabilityId(), unavailability);
+    public void add(Unavailability unavailability) {
+        unavailabilities.put(unavailability.id(), unavailability);
+        timeSlots.put(unavailability.carId(),unavailability);
     }
 
-    public boolean isReserved(long carId) {
-        for (Reservation reservation : reservations.values()) {
-            if (Objects.equals(reservation.carId(), carId)
-                    && Instant.now().isAfter(reservation.startTime())
-                    && Instant.now().isBefore(reservation.endTime())) {
-                return true;
-            }
-        }
-        return false;
+    public void end(Reservation reservation) {
+        reservations.put(reservation.id(), reservation);
+        timeSlots.remove(reservation.carId());
     }
 
-    public boolean isRented(long carId) {
-        for (Rental rental : rentals.values()) {
-            if (Objects.equals(rental.carId(), carId) && isNotOver(rental.startTime(), rental.endTime())) {
-                return true;
-            }
-        }
-        return false;
+    public void end(Rental rental) {
+        rentals.put(rental.id(), rental);
+        timeSlots.remove(rental.carId());
     }
 
-    private boolean isNotOver(Instant start, Instant end) {
-        Instant now = Instant.now();
-        return now.isBefore(end);
-    }
-
-    public boolean isUnavailable(long carId) {
-        for (Unavailability unavailability : unavailabilities.values()) {
-            if (Objects.equals(unavailability.carId(), carId)
-                    && isNotOver(unavailability.startTime(), unavailability.endTime())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public Optional<Reservation> getReservation(long reservationId) {
-        return Optional.ofNullable(reservations.get(reservationId));
-    }
-
-    public Optional<Rental> getRental(long rentalId) {
-        return Optional.ofNullable(rentals.get(rentalId));
-    }
-
-    public Optional<Unavailability> getUnavailability(long unavailabilityId) {
-        return Optional.ofNullable(unavailabilities.get(unavailabilityId));
+    public void end(Unavailability unavailability) {
+        unavailabilities.put(unavailability.id(), unavailability);
+        timeSlots.remove(unavailability.carId());
     }
 
     public List<Rental> getCurrentRentals(long clientId) {
-        return rentals.values()
-                .stream()
-                .filter(rental -> Objects.equals(rental.clientId(), clientId)
-                        && isNotOver(rental.startTime(), rental.endTime()))
+        return timeSlots.values().stream()
+                .filter(slot -> slot instanceof Rental rental
+                        && rental.clientId() == clientId
+                        && rental.isActiveNow())
+                .map(slot -> (Rental) slot)
                 .toList();
+    }
+
+    public Optional<TimeSlot> findActiveSlot(long carId) {
+        TimeSlot timeSlot = timeSlots.get(carId);
+
+        if (timeSlot != null && timeSlot.isActiveNow()) {
+            return Optional.of(timeSlot);
+        }
+        return Optional.empty();
     }
 }
