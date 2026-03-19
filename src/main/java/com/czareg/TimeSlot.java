@@ -5,7 +5,6 @@ import java.time.Instant;
 public interface TimeSlot {
 
     long carId();
-    Instant startTime();
     Instant endTime();
     CarStatus carStatus();
 
@@ -14,6 +13,6 @@ public interface TimeSlot {
     }
 
     default boolean isActiveAt(Instant time) {
-        return !startTime().isAfter(time) && endTime().isAfter(time);
+        return endTime().isAfter(time);
     }
 }

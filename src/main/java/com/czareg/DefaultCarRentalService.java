@@ -104,8 +104,8 @@ public class DefaultCarRentalService implements CarRentalService {
         }
         repository.findClientOrThrow(clientId);
         Reservation reservation = repository.findReservationOrThrow(carId);
-        if (Objects.equals(reservation.clientId(), clientId)) {
-            throw new IllegalArgumentException("Client %s doesn't have a reservation for car %s".formatted(carId, carStatus));
+        if (!Objects.equals(reservation.clientId(), clientId)) {
+            throw new IllegalArgumentException("Client %s doesn't have a reservation for car %s".formatted(clientId, carId));
         }
 
         Reservation modifiedReservation = reservation.withEndTime(Instant.now());

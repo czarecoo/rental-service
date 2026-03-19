@@ -105,7 +105,7 @@ class CarRentalTask2Test {
     }
 
     @RepeatedTest(5)
-    void someClientsRentAndReturnCarsAndOthersRead() throws InterruptedException {
+    void someClientsRentAndReturnCarsWhileOthersRead() throws InterruptedException {
         // given
         List<Car> cars = LongStream.rangeClosed(1, 5).mapToObj(Car::new).toList();
         List<Client> clients = LongStream.rangeClosed(1, 5).mapToObj(Client::new).toList();
@@ -135,6 +135,14 @@ class CarRentalTask2Test {
                     while (!Thread.currentThread().isInterrupted()) {
                         List<Car> allRentedCarsByClient = carRentalService.getAllRentedCarsByClient(clientId);
                         for (Car car : allRentedCarsByClient) {
+                            assertThat(car).isNotNull();
+                        }
+                        List<Client> allClients = carRentalService.getAllClients();
+                        for(Client client: allClients){
+                            assertThat(client).isNotNull();
+                        }
+                        List<Car> availableCars = carRentalService.getAvailableCars();
+                        for (Car car : availableCars) {
                             assertThat(car).isNotNull();
                         }
                     }

@@ -12,7 +12,8 @@ public class Repository {
     private final Map<Long, Reservation> reservations = new HashMap<>();
     private final Map<Long, Rental> rentals = new HashMap<>();
     private final Map<Long, Unavailability> unavailabilities = new HashMap<>();
-    private final Map<Long, TimeSlot> timeSlots = new HashMap<>(); //index for holding ONLY active timeslots for id
+
+    private final Map<Long, TimeSlot> timeSlots = new HashMap<>(); //index for holding ONLY active timeslots for carId
 
     public Repository(List<Car> cars, List<Client> clients) {
         cars.forEach(car -> this.cars.put(car.id(),car));
