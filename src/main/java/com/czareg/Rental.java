@@ -22,6 +22,10 @@ public record Rental(long id, long carId, long clientId, Instant startTime, Inst
         Objects.requireNonNull(endTime);
     }
 
+    public Rental(long carId, long clientId, Instant endTime) {
+        this(0, carId, clientId, Instant.now(), endTime);
+    }
+
     @Override
     public CarStatus carStatus() {
         return CarStatus.RENTED;

@@ -22,6 +22,10 @@ public record Reservation(long id, long carId, long clientId, Instant startTime,
         Objects.requireNonNull(endTime);
     }
 
+    public Reservation(long carId, long clientId, Instant endTime) {
+        this(0L, carId, clientId, Instant.now(), endTime);
+    }
+
     @Override
     public CarStatus carStatus() {
         return CarStatus.RESERVED;

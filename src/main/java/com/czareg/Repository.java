@@ -1,45 +1,45 @@
 package com.czareg;
 
-import lombok.AllArgsConstructor;
+import com.czareg.repository.*;
+import lombok.RequiredArgsConstructor;
 
-import java.util.*;
+import java.util.List;
+import java.util.Optional;
 
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class Repository {
 
-    private final Map<Long, Car> cars = new HashMap<>();
-    private final Map<Long, Client> clients = new HashMap<>();
-    private final Map<Long, Reservation> reservations = new HashMap<>();
-    private final Map<Long, Rental> rentals = new HashMap<>();
-    private final Map<Long, Unavailability> unavailabilities = new HashMap<>();
-
-    private final Map<Long, TimeSlot> timeSlots = new HashMap<>(); //index for holding ONLY active timeslots for carId
+    private final CarRepository carRepository;
+    private final ClientRepository clientRepository;
+    private final RentalRepository rentalRepository;
+    private final ReservationRepository reservationRepository;
+    private final UnavailabilitiesRepository unavailabilitiesRepository;
+    private final CurrentCarStatusRepository currentCarStatusRepository;
 
     public Repository(List<Car> cars, List<Client> clients) {
-        cars.forEach(car -> this.cars.put(car.id(),car));
-        clients.forEach(client -> this.clients.put(client.id(),client));
+        this(new CarRepository(cars), new ClientRepository(clients), new RentalRepository(), new ReservationRepository(), new UnavailabilitiesRepository(), new CurrentCarStatusRepository());
     }
 
-    public List<Car> getCars(){
-        return List.copyOf(cars.values());
+    public List<Car> getCars() {
+        return carRepository.getCars();
     }
 
-    public List<Client> getClients(){
-        return List.copyOf(clients.values());
+    public List<Client> getClients() {
+        return clientRepository.getAll();
     }
 
     public Car findCarOrThrow(long carId) {
-        return Optional.ofNullable(cars.get(carId))
+        return carRepository.findCar(carId)
                 .orElseThrow(() -> new IllegalArgumentException("Car %s doesn't exists".formatted(carId)));
     }
 
     public Client findClientOrThrow(long clientId) {
-        return Optional.ofNullable(clients.get(clientId))
+        return clientRepository.find(clientId)
                 .orElseThrow(() -> new IllegalArgumentException("Client %s doesn't exists".formatted(clientId)));
     }
 
     public Rental findRentalOrThrow(long carId) {
-        return Optional.ofNullable(timeSlots.get(carId))
+        return currentCarStatusRepository.findActiveByCarId(carId)
                 .filter(slot -> slot instanceof Rental rental
                         && rental.isActiveNow())
                 .map(slot -> (Rental) slot)
@@ -47,45 +47,52 @@ public class Repository {
     }
 
     public Reservation findReservationOrThrow(long carId) {
-        return Optional.ofNullable(timeSlots.get(carId))
+        return currentCarStatusRepository.findActiveByCarId(carId)
                 .filter(slot -> slot instanceof Reservation reservation
                         && reservation.isActiveNow())
                 .map(slot -> (Reservation) slot)
                 .orElseThrow(() -> new IllegalArgumentException("Reservation for %s doesn't exists".formatted(carId)));
     }
 
-    public void add(Reservation reservation) {
-        reservations.put(reservation.id(), reservation);
-        timeSlots.put(reservation.carId(),reservation);
+    public Reservation add(Reservation reservation) {
+        reservation = reservationRepository.save(reservation);
+        currentCarStatusRepository.save(reservation);
+        return reservation;
     }
 
-    public void add(Rental rental) {
-        rentals.put(rental.id(), rental);
-        timeSlots.put(rental.carId(),rental);
+    public Rental add(Rental rental) {
+        rental = rentalRepository.save(rental);
+        currentCarStatusRepository.save(rental);
+        return rental;
     }
 
-    public void add(Unavailability unavailability) {
-        unavailabilities.put(unavailability.id(), unavailability);
-        timeSlots.put(unavailability.carId(),unavailability);
+    public Unavailability add(Unavailability unavailability) {
+        unavailability = unavailabilitiesRepository.save(unavailability);
+        currentCarStatusRepository.save(unavailability);
+        return unavailability;
     }
 
-    public void end(Reservation reservation) {
-        reservations.put(reservation.id(), reservation);
-        timeSlots.remove(reservation.carId());
+    public Reservation end(Reservation reservation) {
+        reservation = reservationRepository.save(reservation);
+        currentCarStatusRepository.remove(reservation.carId());
+        return reservation;
     }
 
-    public void end(Rental rental) {
-        rentals.put(rental.id(), rental);
-        timeSlots.remove(rental.carId());
+    public Rental end(Rental rental) {
+        rental = rentalRepository.save(rental);
+        currentCarStatusRepository.remove(rental.carId());
+        return rental;
     }
 
-    public void end(Unavailability unavailability) {
-        unavailabilities.put(unavailability.id(), unavailability);
-        timeSlots.remove(unavailability.carId());
+    public Unavailability end(Unavailability unavailability) {
+        unavailability = unavailabilitiesRepository.save(unavailability);
+        currentCarStatusRepository.remove(unavailability.carId());
+        return unavailability;
     }
 
     public List<Rental> getCurrentRentals(long clientId) {
-        return timeSlots.values().stream()
+        return currentCarStatusRepository.findAllActive()
+                .stream()
                 .filter(slot -> slot instanceof Rental rental
                         && rental.clientId() == clientId
                         && rental.isActiveNow())
@@ -94,11 +101,6 @@ public class Repository {
     }
 
     public Optional<TimeSlot> findActiveSlot(long carId) {
-        TimeSlot timeSlot = timeSlots.get(carId);
-
-        if (timeSlot != null && timeSlot.isActiveNow()) {
-            return Optional.of(timeSlot);
-        }
-        return Optional.empty();
+        return currentCarStatusRepository.findActiveByCarId(carId);
     }
 }

@@ -6,7 +6,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Not thread safe.
@@ -15,7 +14,6 @@ import java.util.concurrent.atomic.AtomicLong;
 public class DefaultCarRentalService implements CarRentalService {
 
     private final Repository repository;
-    private final AtomicLong id = new AtomicLong();
 
     @Override
     public Rental rentCar(long carId, long clientId, int days) {
@@ -27,7 +25,7 @@ public class DefaultCarRentalService implements CarRentalService {
         repository.findClientOrThrow(clientId);
 
         Instant endTime = days == Integer.MAX_VALUE ? Instant.MAX : Instant.now().plus(days, ChronoUnit.DAYS);
-        Rental rental = new Rental(id.getAndIncrement(), carId, clientId, Instant.now(), endTime);
+        Rental rental = new Rental(carId, clientId, endTime);
         repository.add(rental);
         return rental;
     }
@@ -90,7 +88,7 @@ public class DefaultCarRentalService implements CarRentalService {
         repository.findClientOrThrow(clientId);
 
         Instant endTime = days == Integer.MAX_VALUE ? Instant.MAX : Instant.now().plus(days, ChronoUnit.DAYS);
-        Reservation reservation = new Reservation(id.getAndIncrement(), carId, clientId, Instant.now(), endTime);
+        Reservation reservation = new Reservation(carId, clientId, endTime);
         repository.add(reservation);
         return reservation;
     }
