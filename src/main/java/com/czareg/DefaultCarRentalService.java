@@ -26,7 +26,7 @@ public class DefaultCarRentalService implements CarRentalService {
 
         Instant endTime = days == Integer.MAX_VALUE ? Instant.MAX : Instant.now().plus(days, ChronoUnit.DAYS);
         Rental rental = new Rental(carId, clientId, endTime);
-        repository.add(rental);
+        rental = repository.add(rental);
         return rental;
     }
 
@@ -89,7 +89,7 @@ public class DefaultCarRentalService implements CarRentalService {
 
         Instant endTime = days == Integer.MAX_VALUE ? Instant.MAX : Instant.now().plus(days, ChronoUnit.DAYS);
         Reservation reservation = new Reservation(carId, clientId, endTime);
-        repository.add(reservation);
+        reservation = repository.add(reservation);
         return reservation;
     }
 
