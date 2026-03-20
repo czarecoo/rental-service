@@ -16,4 +16,9 @@ public class RentalRepository {
         rentals.put(rental.id(), rental);
         return rental;
     }
+
+    public Rental update(Rental rental) {
+        rentals.put(rental.id(), rental);
+        return rental;
+    }
 }

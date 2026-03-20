@@ -73,19 +73,19 @@ public class Repository {
     }
 
     public Reservation end(Reservation reservation) {
-        reservation = reservationRepository.save(reservation);
+        reservation = reservationRepository.update(reservation);
         currentCarStatusRepository.remove(reservation.carId());
         return reservation;
     }
 
     public Rental end(Rental rental) {
-        rental = rentalRepository.save(rental);
+        rental = rentalRepository.update(rental);
         currentCarStatusRepository.remove(rental.carId());
         return rental;
     }
 
     public Unavailability end(Unavailability unavailability) {
-        unavailability = unavailabilitiesRepository.save(unavailability);
+        unavailability = unavailabilitiesRepository.update(unavailability);
         currentCarStatusRepository.remove(unavailability.carId());
         return unavailability;
     }

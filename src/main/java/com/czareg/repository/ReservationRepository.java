@@ -16,4 +16,9 @@ public class ReservationRepository {
         reservations.put(reservation.id(), reservation);
         return reservation;
     }
+
+    public Reservation update(Reservation reservation) {
+        reservations.put(reservation.id(), reservation);
+        return reservation;
+    }
 }

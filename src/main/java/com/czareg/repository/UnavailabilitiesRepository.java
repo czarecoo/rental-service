@@ -16,4 +16,9 @@ public class UnavailabilitiesRepository {
         unavailabilities.put(unavailability.id(), unavailability);
         return unavailability;
     }
+
+    public Unavailability update(Unavailability unavailability) {
+        unavailabilities.put(unavailability.id(), unavailability);
+        return unavailability;
+    }
 }
